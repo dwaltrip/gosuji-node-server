@@ -14,6 +14,15 @@ console.log('==== ==== ==== ====');
 server.listen(port);
 
 
+app.use(function (req, res, next) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, X-PINGOTHER');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    next();
+});
+
+
 // production
 if (typeof process.env.REDISTOGO_URL !== 'undefined') {
     var redis_url = require('url').parse(process.env.REDISTOGO_URL);
