@@ -26,16 +26,16 @@ var SockjsServer = function(http_server, options) {
     var that = this;
 
     sockjs.on('connection', function(sockjs_connection) {
-        if (verbose) fmt_log('New client connected with id: ' + sockjs_connection.id, true, true);
+        log('New client connected with id: ' + sockjs_connection.id, true);
 
-        var socket = new SocketWrapper(sockjs_connection, that, verbose);
+        var socket = new SocketWrapper(sockjs_connection, that);
         clients[socket.id] = socket;
 
         // SockjsClient already calls JSON.stringify any data before sending, if necessary
         sockjs_connection.on('data', function(data) {
-            if (verbose) fmt_log("Received client data: " + data, '', false);
+            log("Received client data: " + data, true);
             if (typeof data === 'object') {
-                if (verbose) fmt_log("'data' obj keys: " + Object.keys(data), false, '');
+                log("'data' obj keys: " + Object.keys(data), true);
             }
 
             socket.handle(data);
@@ -62,7 +62,7 @@ var SockjsServer = function(http_server, options) {
     };
 
     this.write_all = function(data) {
-        if (verbose) fmt_log('SockjsServer.write_all -- data: ' + JSON.stringify(data), true, true);
+        log('SockjsServer.write_all -- data: ' + JSON.stringify(data), true);
 
         for(var client_id in clients) {
             clients[client_id].write(data);
@@ -70,7 +70,7 @@ var SockjsServer = function(http_server, options) {
     };
 
     this.emit = function(event_name, data) {
-        if (verbose) fmt_log('SockjsServer.emit -- event_name: ' + event_name + ', data: ' + JSON.stringify(data), true, true);
+        log('SockjsServer.emit -- event_name: ' + event_name + ', data: ' + JSON.stringify(data), true, true);
 
         for(var client_id in clients) {
             clients[client_id].emit(event_name, data);
@@ -78,7 +78,7 @@ var SockjsServer = function(http_server, options) {
     };
 
     this.rooms = function(room_name) {
-        if (verbose) fmt_log('rooms: ' + JSON.stringify(rooms));
+        log('rooms: ' + JSON.stringify(rooms), true);
 
         var room_manager = new (function(room_name) {
             var _room_name = room_name;
@@ -89,14 +89,15 @@ var SockjsServer = function(http_server, options) {
                 for(var i = 0; i < skip_list_array.length; i++)
                     skip_list[skip_list_array[i]] = true;
 
-                if (verbose) fmt_log("rooms.emit -- skip_list: '" + JSON.stringify(skip_list), false, false, true);
+                log("rooms.emit -- skip_list: '" + JSON.stringify(skip_list), false, false, true);
                 for(var client_id in rooms[_room_name]) {
                     if (!has_key(skip_list, client_id)) {
-                        if (verbose) fmt_log("rooms.emit -- sending '" + event_name + "' to client_id: " + client_id, false, false, true);
+                        log("rooms.emit -- sending '" + event_name + "' to client: " + client_id, false, false, true);
                         clients[client_id].emit(event_name, data);
                     }
                     else {
-                        if (verbose) fmt_log("rooms.emit -- SKIPPED '" + event_name + "' for client_id: " + client_id, false, false, true);
+                        log("rooms.emit -- SKIPPED '" + event_name + "' for client: " + client_id, false, false, true);
+
                     }
                 }
             };
@@ -108,10 +109,9 @@ var SockjsServer = function(http_server, options) {
             };
         })(room_name);
 
-        if (verbose) {
-            fmt_log('room_manager -- inside wrapper fn, outside constructor', false, false, true);
-            fmt_log('room_manager -- obj prop names: ' + Object.getOwnPropertyNames(room_manager), false, false, true);
-        }
+        log('room_manager -- inside wrapper fn, outside constructor', false, false, true);
+        log('room_manager -- obj prop names: ' + Object.getOwnPropertyNames(room_manager), false, false, true);
+
         return room_manager;
     };
 
@@ -122,10 +122,8 @@ var SockjsServer = function(http_server, options) {
         // silly javascript has no built in set data type
         rooms[room_name][socket_id] = true;
 
-        if (verbose) {
-            fmt_log('SockjsServer._add_client_to-room -- room_name: ' + room_name + ', id: ' + socket_id, true, false);
-            fmt_log('SockjsServer._add_client_to-room -- rooms: ' + JSON.stringify(rooms), false, true, true);
-        }
+        log('SockjsServer._add_client_to-room -- room_name: ' + room_name + ', id: ' + socket_id, true, false);
+        log('SockjsServer._add_client_to-room -- rooms: ' + JSON.stringify(rooms), false, true, true);
     };
 
     this._remove_client_from_room = function(room_name, socket_id) {
@@ -134,6 +132,16 @@ var SockjsServer = function(http_server, options) {
         delete rooms[room_name][socket_id];
         return true;
     };
+
+    this.log = function() {
+        log.apply(that, arguments);
+    }
+
+    var log = function() {
+        if (verbose) {
+            fmt_log.apply(that, arguments);
+        }
+    }
 
     var add_room = function(room_name) {
         rooms[room_name] = {};
@@ -147,7 +155,7 @@ var SockjsServer = function(http_server, options) {
     };
 };
 
-var SocketWrapper = function(sockjs_connection, sockjs_server, verbose) {
+var SocketWrapper = function(sockjs_connection, sockjs_server) {
     this.socket = sockjs_connection;
     this.id = this.socket.id;
     this.server = sockjs_server;
@@ -155,7 +163,6 @@ var SocketWrapper = function(sockjs_connection, sockjs_server, verbose) {
 
     var that = this;
     var event_emitter = new EventEmitter();
-    var verbose = verbose;
 
     this.handle = function(raw_data) {
         var data = JSON.parse(raw_data);
@@ -163,17 +170,16 @@ var SocketWrapper = function(sockjs_connection, sockjs_server, verbose) {
 
         if (data.type == 'message') {
             if (has_key(data, 'event_name')) {
-                if (verbose) fmt_log("SocketWrapper.handle -- emitting '" + data.event_name + "'", false, false, true);
+                log("SocketWrapper.handle -- emitting '" + data.event_name + "'", false, false, true);
                 var count = event_emitter.listeners(data.event_name).length;
-                if (verbose) {
-                    fmt_log("event_emitter listener count ('" + data.event_name + "')" + ": " + count, false, false, true);
-                    fmt_log('event_emitter._events keys: ' + Object.keys(event_emitter._events), false, true, true);
-                }
+
+                log("event_emitter listener count ('" + data.event_name + "'): " + count, false, false, true);
+                log('event_emitter._events keys: ' + Object.keys(event_emitter._events), false, false, true);
 
                 event_emitter.emit(data.event_name, data.data);
             }
             else {
-                if (verbose) fmt_log("SocketWrapper.handle -- emitting 'message'", false, true, true);
+                log("SocketWrapper.handle -- emitting 'message'", false, false, true);
                 event_emitter.emit('message', data.data);
             }
         }
@@ -183,14 +189,12 @@ var SocketWrapper = function(sockjs_connection, sockjs_server, verbose) {
     };
 
     this.on = function(event_name, cb) {
-        if (verbose) {
-            fmt_log('SocketWrapper.on, setting callbacks -- event_name: ' + JSON.stringify(event_name));
-            fmt_log('cb:' + cb.toString().split('\n')[0], false, false, true);
-        }
+        log('SocketWrapper.on, setting callbacks -- event_name: ' + JSON.stringify(event_name), true);
+        log('cb:' + cb.toString().split('\n')[0], false, false, true);
 
         event_emitter.on(event_name, cb);
         var eee_keys = Object.keys(event_emitter._events);
-        if (verbose) fmt_log('event_emitter._events keys (after adding listener): ' + eee_keys,  false, true, true);
+        log('event_emitter._events keys (after adding listener): ' + eee_keys,  false, false, true);
     };
 
     // 'write' is the same as 'emit', goes straight to the client 'message' listener
@@ -211,13 +215,13 @@ var SocketWrapper = function(sockjs_connection, sockjs_server, verbose) {
     };
 
     this.join = function(room_name) {
-        if (verbose) fmt_log('SocketWrapper.join -- room_name: ' + room_name, true, false);
+        log('SocketWrapper.join -- room_name: ' + room_name, true);
         that.server._add_client_to_room(room_name, that.id);
         that.rooms[room_name] = true;
     };
 
     this.leave = function(room_name) {
-        if (verbose) fmt_log('SocketWrapper.leave -- room_name: ' + room_name, true, true);
+        log('SocketWrapper.leave -- room_name: ' + room_name, true);
 
         if(that.server._remove_client_from_room(room_name, that.id)) {
             delete that.rooms[room_name];
@@ -225,6 +229,10 @@ var SocketWrapper = function(sockjs_connection, sockjs_server, verbose) {
         }
         return false;
     };
+
+    var log = function() {
+        that.server.log.apply(that.server, arguments);
+    }
 };
 
 module.exports.SockjsServer = SockjsServer;

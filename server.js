@@ -46,18 +46,18 @@ sockjs_server.on('connection', function(socket) {
     sockjs_server.write_all('New client connected, with id: ' + socket.id);
 
     socket.on('successfully-connnected', function(data) {
-        fmt_log("inside socket.on 'successfully-connected' callback, data: " + JSON.stringify(data), true, true);
+        fmt_log("inside socket.on 'successfully-connected' callback, data: " + JSON.stringify(data), true);
     });
 
     socket.on('subscribe-to-updates', function(data) {
         fmt_log("inside socket.on 'subscribe-to-updates' callback, data: " + JSON.stringify(data), true);
-        fmt_log('socket id: ' + socket.id, false, true, true);
+        fmt_log('socket id: ' + socket.id, false, false, true);
 
         socket.join(data.room_id);
     });
 
     socket.on('submitted-move', function(data) {
-        fmt_log('\n====================\n', false, false, true);
+        console.log('\n====================\n')
         fmt_log("inside socket.on 'sumbitted-move' callback, data: " + JSON.stringify(data), true);
 
         fmt_log("-- Object.keys(update_handlers): " + JSON.stringify(Object.keys(update_handlers)), false, false, true);
@@ -75,15 +75,16 @@ redis.on('message' , function(channel, json_data) {
     fmt_log("channel: " + channel + ", json_data: " + json_data, false, false, true);
 
     var data = JSON.parse(json_data);
+    var move_id = data.move_id;
     //sockjs_server.rooms(data.room_id).emit('new-move', data, { skip: [data.from_id] });
 
-    fmt_log("-- Object.keys(update_handlers): " + JSON.stringify(Object.keys(update_handlers)), true, false, true);
-    if(!has_key(update_handlers, data.move_id)) {
-        update_handlers[data.move_id] = new UpdateHandler(data.move_id);
+    fmt_log("Object.keys(update_handlers): " + JSON.stringify(Object.keys(update_handlers)), true, false, true);
+    if(!has_key(update_handlers, move_id)) {
+        update_handlers[data.move_id] = new UpdateHandler(move_id);
     }
 
-    fmt_log('-- update_handlers[data.move_id].sender_id): ' + update_handlers[data.move_id].sender_id, false, false, true);
-    update_handlers[data.move_id].set_update_data(data);
+    fmt_log('update_handlers[move_id].sender_id: ' + update_handlers[move_id].sender_id, false, false, true);
+    update_handlers[move_id].set_update_data(data);
 });
 
 redis.subscribe('game-updates');
@@ -98,7 +99,9 @@ var UpdateHandler = function(move_id) {
     var that = this;
 
     this.send_updates = function() {
-        fmt_log("sending updates (move_id: " + that.move_id + ") -- update_data: " + JSON.stringify(that.update_data), false, true, true);
+        fmt_log("sending updates, move_id: " + that.move_id, false, false, true);
+        fmt_log("update_data: " + JSON.stringify(that.update_data), false, false, true);
+
         sockjs_server.rooms(that.update_data.room_id).emit('new-move', that.update_data, { skip: [that.sender_id] });
     };
 
