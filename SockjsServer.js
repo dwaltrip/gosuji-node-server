@@ -41,8 +41,10 @@ var SockjsServer = function(http_server, options) {
             socket.handle(data);
         });
 
-        sockjs_connection.on('close', function(code, reason) {
-            // if (verbose) fmt_log('Connection closed. code: ' + code + ', reason: ' + reason, '', '');
+        sockjs_connection.on('close', function() {
+            log('Connection closed for socket id: ' + sockjs_connection.id, true);
+
+            socket.handle({ type: 'close' });
             remove_client(socket.id);
         });
 
@@ -165,8 +167,8 @@ var SocketWrapper = function(sockjs_connection, sockjs_server) {
     var event_emitter = new EventEmitter();
 
     this.handle = function(raw_data) {
-        var data = JSON.parse(raw_data);
-        if (verbose) fmt_log('SocketWrapper.handle -- id: ' + that.id + ', raw_data: ' + raw_data, true, false);
+        var data = (typeof raw_data === 'string') ? JSON.parse(raw_data) : raw_data;
+        log('SocketWrapper.handle -- id: ' + that.id + ', data: ' + data, true);
 
         if (data.type == 'message') {
             if (has_key(data, 'event_name')) {
@@ -181,6 +183,14 @@ var SocketWrapper = function(sockjs_connection, sockjs_server) {
             else {
                 log("SocketWrapper.handle -- emitting 'message'", false, false, true);
                 event_emitter.emit('message', data.data);
+            }
+        }
+        else {
+            log("SocketWrapper.handle -- non-message, data.type: " + data.type, false, false, true);
+
+            if (has_key(data, 'args')) {
+                data.args.unshift(data.type);
+                event_emitter.emit.apply(this, data.args);
             }
         }
 

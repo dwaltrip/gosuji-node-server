@@ -45,6 +45,10 @@ var update_handlers = {}
 sockjs_server.on('connection', function(socket) {
     sockjs_server.write_all('New client connected, with id: ' + socket.id);
 
+    socket.on('close', function() {
+        fmt_log("inside socket.on 'close' callback", true);
+    });
+
     socket.on('successfully-connnected', function(data) {
         fmt_log("inside socket.on 'successfully-connected' callback, data: " + JSON.stringify(data), true);
     });
