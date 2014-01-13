@@ -60,7 +60,7 @@ sockjs_server.on('connection', function(socket) {
         socket.join(data.room_id);
     });
 
-    socket.on('submitted-move', function(data) {
+    socket.on('submitted-game-action', function(data) {
         console.log('\n====================\n')
         fmt_log("inside socket.on 'sumbitted-move' callback, data: " + JSON.stringify(data), true);
 
@@ -69,6 +69,15 @@ sockjs_server.on('connection', function(socket) {
             update_handlers[data.move_id] = new UpdateHandler(data.move_id);
         }
         update_handlers[data.move_id].set_sender(socket.id);
+    });
+
+    // clear successfully sent update from update_handlers hash
+    // might need to rethink this when I ensure observing game works flawlessly
+    socket.on('received-game-update', function(data) {
+        fmt_log("inside socket.on 'recieved-game-update' callback, data: " + JSON.stringify(data), true);
+        fmt_log('socket id: ' + socket.id, false, false, true);
+
+        delete update_handlers[data.move_id];
     });
 
 });
@@ -106,7 +115,7 @@ var UpdateHandler = function(move_id) {
         fmt_log("sending updates, move_id: " + that.move_id, false, false, true);
         fmt_log("update_data: " + JSON.stringify(that.update_data), false, false, true);
 
-        sockjs_server.rooms(that.update_data.room_id).emit('new-move', that.update_data, { skip: [that.sender_id] });
+        sockjs_server.rooms(that.update_data.room_id).emit('game-updates', that.update_data, { skip: [that.sender_id] });
     };
 
     this.set_update_data = function(data) {
