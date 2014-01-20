@@ -168,7 +168,9 @@ var SocketWrapper = function(sockjs_connection, sockjs_server) {
 
     this.handle = function(raw_data) {
         var data = (typeof raw_data === 'string') ? JSON.parse(raw_data) : raw_data;
-        log('SocketWrapper.handle -- id: ' + that.id + ', data: ' + data, true);
+        var data_keys_str = null;
+        if (has_key(data, 'data')) data_keys_str = "data['data'].keys: " + JSON.stringify(Object.keys(data.data));
+        log('SocketWrapper.handle -- id: ' + that.id + ", " + data_keys_str, true);
 
         if (data.type == 'message') {
             if (has_key(data, 'event_name')) {
