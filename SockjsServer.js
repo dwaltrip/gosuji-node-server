@@ -131,7 +131,13 @@ var SockjsServer = function(http_server, options) {
     this._remove_client_from_room = function(room_name, socket_id) {
         if(!has_key(rooms, room_name) || !has_key(rooms[room_name], socket_id))
             return false;
+
         delete rooms[room_name][socket_id];
+
+        // if room now has no clients, then delete room
+        if (Object.keys(rooms[room_name]).length == 0)
+            delete rooms[room_name];
+
         return true;
     };
 
@@ -151,7 +157,8 @@ var SockjsServer = function(http_server, options) {
 
     var remove_client = function(client_id) {
         for(var room_name in clients[client_id].rooms) {
-            delete rooms[room_name][client_id];
+            that._remove_client_from_room(room_name, client_id)
+            //delete rooms[room_name][client_id];
         }
         delete clients[client_id];
     };
