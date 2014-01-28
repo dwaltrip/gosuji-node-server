@@ -40,16 +40,27 @@ fmt_log('redis client -- domain: ' + redis.domain + ', host: ' + redis.host + ',
 var SockjsServer = require('./SockjsServer').SockjsServer;
 var sockjs_server = new SockjsServer(server, { prefix: '/realtime', verbose: true });
 
-
 sockjs_server.on('connection', function(socket) {
     sockjs_server.write_all('New client connected, with id: ' + socket.id);
 
     socket.on('close', function() {
         fmt_log("inside socket.on 'close' callback", true);
+
+        // clear references to now closed socket connection
+        var dead_connection_id = null;
+        for(var connection_id in socket_ids) {
+            if (socket_ids[connection_id] == socket.id) {
+                dead_connection_id = connection_id;
+            }
+        }
+        if (dead_connection_id !== null) delete socket_ids[dead_connection_id];
+        else fmt_log("---- UNEXPECTED, we couldn't find connection id for socket: " + socket.id, false, false, true);
     });
 
     socket.on('successfully-connnected', function(data) {
         fmt_log("inside socket.on 'successfully-connected' callback, data: " + JSON.stringify(data), true);
+
+        socket_ids[data.connection_id] = socket.id;
     });
 
     socket.on('subscribe-to-updates', function(data) {
@@ -57,47 +68,6 @@ sockjs_server.on('connection', function(socket) {
         fmt_log('socket id: ' + socket.id, false, false, true);
 
         socket.join(data.room_id);
-    });
-
-    socket.on('submitted-game-action', function(data) {
-        console.log('\n====================')
-        fmt_log("inside socket.on 'sumbitted-game-action' callback, data: " + JSON.stringify(data), true);
-        fmt_log('socket id: ' + socket.id, false, false, true);
-
-        data.initiator_id = socket.id;
-        event_manager.sync(data.move_id, data)
-    });
-
-    socket.on('received-game-update', function(data) {
-        fmt_log("inside socket.on 'recieved-game-update' callback, data: " + JSON.stringify(data), true);
-        fmt_log('socket id: ' + socket.id, false, false, true);
-
-        event_manager.clear(data.event_id);
-    });
-
-    socket.on('submitted-undo-request', function(data) {
-        console.log('\n====================');
-        fmt_log("inside socket.on 'sumbitted-undo-request' callback, data: " + JSON.stringify(data), true);
-        fmt_log('socket id: ' + socket.id, false, false, true);
-
-        data.initiator_id = socket.id;
-        event_manager.sync(data.request_id, data);
-    });
-
-    socket.on('undo-performed', function(data) {
-        console.log('\n====================');
-        fmt_log("inside socket.on 'undo-performed' callback, data: " + JSON.stringify(data), true);
-        fmt_log('socket id: ' + socket.id, false, false, true);
-
-        data.initiator_id = socket.id;
-        event_manager.sync(data.event_id, data);
-    });
-
-    socket.on('received-undo-request', function(data) {
-        fmt_log("inside socket.on 'recieved-undo-request' callback, data: " + JSON.stringify(data), true);
-        fmt_log('socket id: ' + socket.id, false, false, true);
-
-        event_manager.clear(data.request_id);
     });
 });
 
@@ -108,94 +78,22 @@ redis.on('message' , function(channel, json_data) {
     fmt_log("channel: " + channel + ", json_data: " + json_data, false, false, true);
 
     var data = JSON.parse(json_data);
-    data.from = 'redis';
-
-    if (data.event_type == 'game-update') {
-        data.event_name = data.event_type;
-        delete data.event_type;
-
-        event_manager.sync(data.event_id, data);
-    }
-    else if (data.event_type == 'undo-request') {
-        data.event_name = data.event_type;
-        delete data.event_type;
-
-        event_manager.sync(data.request_id, data);
-    }
+    send_socket_messages(data);
 });
 redis.subscribe('game-events');
 
 
-var EventManager = function() {
-    var events = {};
+function send_socket_messages(event_data) {
+    var log_msg = 'event_name: ' + event_data.event_name;
+    fmt_log('send_socket_messages -- ' + log_msg, false, false, true);
+    fmt_log('event_data: ' + JSON.stringify(event_data), false, false, true);
 
-    this.sync = function(event_id, data) {
-        var keys_str = ', data.keys: ' + JSON.stringify(Object.keys(data));
-        fmt_log('event_manager.sync -- event_id: ' + event_id + keys_str + ', from: ' + data.from, false, false, true);
-        if (!has_key(events, event_id)) {
-            events[event_id] = new EventHandler(event_id);
-        }
-        handler = events[event_id];
+    // the 'skip' option allows us to not send event data to the initiator of the event
+    // users are identified by socket id, which we get automatically with SockJS
+    var options = { skip: [socket_ids[event_data.connection_id]] };
 
-        if (has_key(data, 'initiator_id'))
-            handler.set_initiator(data.initiator_id);
-        if (has_key(data, 'payload'))
-            handler.set_data(data);
-        fmt_log('event_manager, remaining event_ids: ' + JSON.stringify(Object.keys(events)), false, false, true);
-    }
-
-    this.clear = function(event_id) {
-        if (has_key(events, event_id)) {
-            delete events[event_id];
-        } else fmt_log('event_manager.clear -- event_id was not found', true);
-
-        var event_ids = JSON.stringify(Object.keys(events));
-        fmt_log('event_manager.clear -- event_id: ' + event_id + ', remaining event_ids: ' + event_ids, true);
-    }
-}
-var event_manager = new EventManager;
-
-var EventHandler = function(event_id) {
-    var event_data = {};
-    var event_id = event_id;
-    var initiator_id = null;
-
-    var received_event_data = false;
-    var initiator_identified = false;
-    var that = this;
-
-    this.set_data = function(data) {
-        for(var data_key in data) event_data[data_key] = data[data_key];
-        var keys = JSON.stringify(Object.keys(event_data));
-        fmt_log('EventHandler.set_data -- event_data.keys: ' + keys, false, false, true);
-
-        received_event_data = true;
-        if (that.ready_to_send) send_data();
-    };
-
-    this.set_initiator = function(_initiator_id) {
-        initiator_id = _initiator_id;
-        initiator_identified = true;
-
-        if (that.ready_to_send) send_data();
-    };
-
-    var send_data = function() {
-        log_msg = 'event_id: ' + event_id + ', event_name: ' + event_data.event_name;
-        fmt_log('EventHandler.send_data -- ' + log_msg, false, false, true);
-        fmt_log('event_data: ' + JSON.stringify(event_data), false, false, true);
-
-        // the 'skip' option allows us to not send event data to the initiator of the event
-        // users are identified by socket id, which we get automatically with SockJS
-        options = { skip: [initiator_id] };
-        fmt_log("sending event_data via '" + event_data.event_name + "'",  false, false, true);
-        var payload = event_data.payload;
-        payload.event_id = event_id;
-        sockjs_server.rooms(event_data.room_id).emit(event_data.event_name, payload, options);
-    };
-
-    Object.defineProperty(this, 'ready_to_send', {
-        get: function() { return (initiator_identified && received_event_data); }
-    });
+    fmt_log("sending event_data via '" + event_data.event_name + "'",  false, false, true);
+    sockjs_server.rooms(event_data.room_id).emit(event_data.event_name, event_data.payload, options);
 }
 
+var socket_ids = {}
