@@ -90,7 +90,7 @@ function send_socket_messages(event_data) {
 
     // the 'skip' option allows us to not send event data to the initiator of the event
     // users are identified by socket id, which we get automatically with SockJS
-    var options = { skip: [socket_ids[event_data.connection_id]] };
+    var options = { skip: [socket_ids[event_data.connection_id_to_skip]] };
 
     fmt_log("sending event_data via '" + event_data.event_name + "'",  false, false, true);
     sockjs_server.rooms(event_data.room_id).emit(event_data.event_name, event_data.payload, options);
