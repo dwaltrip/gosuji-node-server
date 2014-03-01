@@ -5,7 +5,7 @@ module.exports.has_key = has_key;
 module.exports.fmt_log = fmt_log;
 
 function has_key(obj, key) {
-    return Object.hasOwnProperty.call(obj, key);
+    return Object.prototype.hasOwnProperty.call(obj, key);
 };
 
 // usage is not entirely obvious, but I stil find it convenient
