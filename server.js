@@ -57,17 +57,19 @@ sockjs_server.on('connection', function(socket) {
         else fmt_log("---- UNEXPECTED, we couldn't find connection id for socket: " + socket.id, false, false, true);
     });
 
+    socket.on('join-room', function(data) {
+        fmt_log("inside socket.on 'join-room' callback, data: " + JSON.stringify(data), true);
+        socket.join(data.room);
+    });
+
     socket.on('successfully-connnected', function(data) {
         fmt_log("inside socket.on 'successfully-connected' callback, data: " + JSON.stringify(data), true);
-
         socket_ids[data.connection_id] = socket.id;
     });
 
-    socket.on('subscribe-to-updates', function(data) {
-        fmt_log("inside socket.on 'subscribe-to-updates' callback, data: " + JSON.stringify(data), true);
-        fmt_log('socket id: ' + socket.id, false, false, true);
-
-        socket.join(data.room_id);
+    socket.on('chat-message', function(data) {
+        fmt_log("inside socket.on 'chat-message' callback, data: " + JSON.stringify(data), true);
+        sockjs_server.rooms(data.room_id).emit('chat-message', data, { skip: [socket.id] });
     });
 });
 
@@ -88,7 +90,7 @@ function send_socket_messages(event_data) {
     fmt_log('send_socket_messages -- ' + log_msg, false, false, true);
     fmt_log('event_data: ' + JSON.stringify(event_data), false, false, true);
 
-    // the 'skip' option allows us to not send event data to the initiator of the event
+    // the 'skip' option allows us to avoid sending event data to the initiator of the event
     // users are identified by socket id, which we get automatically with SockJS
     var options = { skip: [socket_ids[event_data.connection_id_to_skip]] };
 

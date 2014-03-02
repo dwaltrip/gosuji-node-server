@@ -1,6 +1,3 @@
-var sprintf = require("sprintf-js").sprintf,
-    vsprintf = require("sprintf-js").vsprintf;
-
 module.exports.has_key = has_key;
 module.exports.fmt_log = fmt_log;
 
@@ -8,8 +5,18 @@ function has_key(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
 };
 
-// usage is not entirely obvious, but I stil find it convenient
-// with some effort could be more friendly and useful
+// With some effort, this could be made more friendly and useful. The main reason I use this is because
+// it adds indentation to any lines from log_message that wrap around, which makes reading through the
+// log file much easier. It also adds a time header, which is nice during development, as log messages
+// don't have any time data (In production, Heroku adds time data to every log message).
+//
+// blank_before:
+//      boolean that determines if we add a blank row before the log messgae
+// blank_after:
+//      boolean that determines if we add a blank row after the log messgae
+// skip_time_header:
+//      boolean that indiciates whether or not to skip printing a row with time data
+//      if this is false, and blank_before is true, the blank row is added before the time header row
 function fmt_log(log_message, blank_before, blank_after, skip_time_header) {
     if (typeof blank_before !== 'undefined' && blank_before) console.log('');
 
