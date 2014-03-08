@@ -37,7 +37,7 @@ else {
 fmt_log('redis client -- domain: ' + redis.domain + ', host: ' + redis.host + ', port: ' + redis.port, true, true);
 
 
-var SockjsServer = require('./SockjsServer').SockjsServer;
+var SockjsServer = require('./sockjs-server-wrapper').SockjsServer;
 var sockjs_server = new SockjsServer(server, { prefix: '/realtime', verbose: true });
 
 sockjs_server.on('connection', function(socket) {
