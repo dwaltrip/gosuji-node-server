@@ -24,14 +24,14 @@ app.use(function (req, res, next) {
 
 
 // production
-if (typeof process.env.REDISTOGO_URL !== 'undefined') {
-    var redis_url = require('url').parse(process.env.REDISTOGO_URL);
+if (typeof process.env.REDIS_URL !== 'undefined') {
+    var redis_url = require('url').parse(process.env.REDIS_URL);
     var redis = require('redis').createClient(redis_url.port, redis_url.hostname);
     redis.auth(redis_url.auth.split(':')[1]);
 }
 // development
 else {
-    var redis_url = require('url').parse(require('./development_config').REDISTOGO_URL);
+    var redis_url = require('url').parse(require('./development-config').REDIS_URL);
     var redis = require('redis').createClient(redis_url.port, redis_url.hostname);
 }
 fmt_log('redis client -- domain: ' + redis.domain + ', host: ' + redis.host + ', port: ' + redis.port, true, true);
